@@ -4,7 +4,6 @@ const { connect } = require('http2');
 const Discord = require('discord.js'),
   fs = require('fs'),
   config = JSON.parse(fs.readFileSync('config.json', 'utf8')),
-  warnfile = require("./warns.json"),
   muterole = '696750135727882310',
   Enmap = require('enmap'),
   imgur = require('imgur'),
