@@ -12,6 +12,7 @@
     "-": "0.0.1",
     "@evrimfeyyaz/covid-19-api": "^2.0.5",
     "better-sqlite3": "^7.1.2",
+    "canvas": "^2.8.0",
     "cron": "^1.8.2",
     "discord.js": "^12.5.1",
     "dotenv": "^8.2.0",

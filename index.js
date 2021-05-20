@@ -9,7 +9,6 @@ const Discord = require('discord.js'),
   imgur = require('imgur'),
   modules = new Map(),
   mysql = require('mysql'),
-  // CONFIG
   guildC = {
     cmdprefix: new Map(),
     adminrole: new Map(),
@@ -26,7 +25,8 @@ const Discord = require('discord.js'),
   moment = require('moment'),
   fetch = require('node-fetch'),
   http = require('http'),
-  formidable = require('formidable');
+  formidable = require('formidable'),
+  Canvas = require('canvas');
 
 var connection = mysql.createConnection({
   host: config.sql.host,
@@ -37,8 +37,8 @@ var connection = mysql.createConnection({
 }, console.log('Database connected'))
 if (err => {
   console.log('Database connection error'),
-    console.log(err.code), // 'ECONNREFUSED'
-    console.log(err.fatal) // true
+    console.log(err.code),
+    console.log(err.fatal)
 });
 
 connection.connect();
@@ -52,12 +52,12 @@ const COLOR = {
 }
 let client = new Discord.Client({ ws: { intents: Discord.ALL } })
 
-imgur.setClientId('d28f4b30457eb9b');
+imgur.setClientId(config.imgur.clientId);
 imgur.setAPIUrl('https://api.imgur.com/3/upload/');
 
-let newguilds = 0;
-let scheduledMessage = new cron.CronJob('00 00 00 * * *', () => {
-  // ist rückwärts - 00 30 10 für 10:30
+let newguilds = 0,
+    scheduledMessage = new cron.CronJob('00 00 00 * * *', () => {
+  // backwards - 00 30 10 = 10:30 (24h)
   let embed = new Discord.MessageEmbed()
     .setDescription(
       '📊 **Daily statistics**\n' +
@@ -76,7 +76,7 @@ client.on('ready', async () => {
   console.log(`Started as: ${client.user.tag}`);
   client.user.setPresence({ activity: { name: 'the Spider-Arena', type: 'COMPETING' }, status: 'dnd' }).catch(console.error);
 
-  scheduledMessage.start()
+  scheduledMessage.start();
 
   console.log("Setting guild variables...")
 
@@ -111,13 +111,6 @@ client.on('ready', async () => {
         guildC.lang.set(guild.id, result[0].guildC.lang);
       }
     });
-
-    //connection.query(`SELECT * FROM modules WHERE guild_id = '${guild.id}'`, function (error, results, fields) {
-    //  results.forEach(function(result) {
-    //    let id = result.id;
-    //    modules.set(guild.id, result[id].module, result[id].status);
-    //  });
-    //});
 
     connection.query(`SELECT * FROM modules WHERE guild_id = '${guild.id}'`, function (error, results, fields) {
       if (results?.[0] == undefined) {
@@ -157,12 +150,7 @@ client.on('ready', async () => {
     });
 
     connection.query(`SELECT guild_id FROM modules_setting WHERE guild_id = '${guild.id}' AND module = 'welcome'`, function (error, results, fields) {
-      if (results?.[0] == undefined) {
-        connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'type', 'message')`);
-        connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'channel', NULL)`);
-        connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'message', 'Hey {tag}, welcome to {gname}!')`);
-        connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'image', NULL)`);
-      }
+      if (results?.[0] == undefined) connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'stg', '{"type": "message", "channel": "NULL", "message": "Hey {tag}, welcome to {gname}!", "image": "NULL", "color": "NULL", "title": "Welcome to our server!"}')`);
     });
 
     //APRIL APRIL
@@ -280,18 +268,18 @@ client.on("guildCreate", guild => {
   let channel = guild.channels.cache.filter(ch => ch.type === "text").find(x => x.position === 0);
 
   connection.query(`SELECT guild_id FROM guilds WHERE guild_id = '${guild.id}'`, function (error, result, fields) {
-    if (result[0] == undefined) {
+    if (result?.[0] == undefined) {
       connection.query(`INSERT INTO guilds (guild_id, guild_name, guild_premium) VALUES('${guild.id}', '${guild.name}', 'false')`);
     }
   })
   connection.query(`SELECT guild_id FROM guild_config WHERE guild_id = '${guild.id}'`, function (error, result, fields) {
-    if (result[0] == undefined) {
+    if (result?.[0] == undefined) {
       connection.query(`INSERT INTO guild_config (guild_id, guild_prefix) VALUES('${guild.id}', 'b!')`);
     }
   })
 
   connection.query(`SELECT * FROM modules WHERE guild_id = '${guild.id}'`, function (error, results, fields) {
-    if (results[0] == undefined) {
+    if (results?.[0] == undefined) {
       connection.query(`INSERT INTO modules (guild_id, module, status) VALUES ('${guild.id}', 'moderation', 'false')`);
       connection.query(`INSERT INTO modules (guild_id, module, status) VALUES ('${guild.id}', 'fun', 'false')`);
       connection.query(`INSERT INTO modules (guild_id, module, status) VALUES ('${guild.id}', 'log', 'false')`);
@@ -310,7 +298,7 @@ client.on("guildCreate", guild => {
   });
 
   connection.query(`SELECT guild_id FROM modules_setting WHERE guild_id = '${guild.id}' AND module = 'logging'`, function (error, results, fields) {
-    if (results[0] == undefined) {
+    if (results?.[0] == undefined) {
       connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'logging', 'voice', 'true')`);
       connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'logging', 'channel', 'true')`);
       connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'logging', 'moderation', 'true')`);
@@ -318,7 +306,7 @@ client.on("guildCreate", guild => {
   });
 
   connection.query(`SELECT guild_id FROM modules_setting WHERE guild_id = '${guild.id}' AND module = 'moderation'`, function (error, results, fields) {
-    if (results[0] == undefined) {
+    if (results?.[0] == undefined) {
       connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'moderation', 'bad_words', 'true')`);
       connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'moderation', 'server_invites', 'true')`);
       connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'moderation', 'zalgo', 'true')`);
@@ -327,18 +315,11 @@ client.on("guildCreate", guild => {
   });
 
   connection.query(`SELECT guild_id FROM modules_setting WHERE guild_id = '${guild.id}' AND module = 'welcome'`, function (error, results, fields) {
-    if (results[0] == undefined) {
-      connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'type', 'message')`);
-      connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'channel', NULL)`);
-      connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'message', 'Hey {tag}, welcome to {gname}!')`);
-      connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'image', NULL)`);
-    }
+    if (results?.[0] == undefined) connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'stg', '{"type": "message", "channel": "NULL", "message": "Hey {tag}, welcome to {gname}!", "image": "NULL", "color": "NULL", "title": "Welcome to our server!"}')`);
   });
 
   connection.query(`SELECT status FROM guilds WHERE guild_id = '${guild.id}'`, function (error, result, fields) {
-    if (result[0] == undefined) {
-      if(result[0].status == 'false') connection.query(`UPDATE guilds SET status = 'true' WHERE guild_id = '${guild.id}'`);
-    }
+    if(result?.[0].status == 'false') connection.query(`UPDATE guilds SET status = 'true' WHERE guild_id = '${guild.id}'`);
   });
 
 
@@ -346,11 +327,11 @@ client.on("guildCreate", guild => {
   guildC.modlog.set(guild.id, undefined);
   guildC.cmdprefix.set(guild.id, 'b!');
 
-  connection.query(`SELECT COUNT(*) as total FROM guilds WHERE guild_id != "${guild.id}"`, function (error, result, fields) {
+  connection.query(`SELECT COUNT(*) as total FROM guilds WHERE status != "false"`, function (error, result, fields) {
     if (result[0] != undefined) {
       let embed = new Discord.MessageEmbed()
         .setTitle(`📊 Guild added`)
-        .setDescription(`**Name:** ${guild.name}\n**ID:** ${guild.id}\n**Members:** ${guild.memberCount}\n\n**Guild counter:** ${result[0].total + 1}`)
+        .setDescription(`**Name:** ${guild.name}\n**ID:** ${guild.id}\n**Members:** ${guild.memberCount}\n\n**Guild counter:** ${result[0].total}`)
         .setColor(COLOR.bagley)
         .setTimestamp()
 
@@ -379,37 +360,75 @@ client.on("guildDelete", guild => {
   connection.query(`UPDATE guilds SET status = 'false' WHERE guild_id = '${guild.id}'`);
 });
 
-// client.on("guildMemberAdd", async member => {
-// const guild = member.guild;
+client.on("guildMemberAdd", async member => {
+  const guild = member.guild;
 
-// connection.query(`SELECT welcome FROM modules WHERE guild_id = '${guild.id}'`, function (error, result, fields) {
-// if(result[0] != undefined) {
-// if(result[0].welcome === 'true') {
-// const msg_type = connection.query(`SELECT setting FROM modules_setting WHERE guild_id = '${guild.id}' AND module = 'welcome' AND setting = 'type'`),
-// msg_channel = connection.query(`SELECT setting FROM modules_setting WHERE guild_id = '${guild.id}' AND module = 'welcome' AND setting = 'channel'`),
-// msg_message = connection.query(`SELECT setting FROM modules_setting WHERE guild_id = '${guild.id}' AND module = 'welcome' AND setting = 'message'`);
+  connection.query(`SELECT status FROM modules WHERE guild_id = '${guild.id}' AND module = "welcome"`, function (err, res, flds) {
+    if(res?.[0] != undefined) {
+      if(res?.[0].status === 'true') {
 
-// var msg_ch = msg_channel[0].setting,
-// msg_tpe = msg_type[0].setting,
-// msg = msg_message[0].setting;
+        connection.query(`SELECT value FROM modules_setting WHERE guild_id = '${guild.id}' AND module = 'welcome' AND setting = 'stg'`, function (error, result, fields) {
+          const mWelcome = JSON.parse(result?.[0]?.value);
+          const channel = client.channels.cache.get(mWelcome.channel);
 
-// if(msg_tpe === 'message') {
-// msg_ch.send(msg);
-// } else if(msg_tpe === 'embed') {
-// var color = msg['color'] || COLOR.bagley,
-// title = msg['title'].relace('{tag}', member.tag).relace('{name}', member.name).relace('{gname}', guild.name).relace('{membercount}', guild.members.filter(member => !member.user.bot).size),
-// embed = new Discord.MessageEmbed()
-// .setTitle(title)
-// .setDescription(msg['description'])
-// .setThumbnail(msg['thumbnail'])
-// .setColor(color);
+          if(!channel) return;
+  
+          if(mWelcome.type === 'message')
+            channel.send(mWelcome.message);
+          else if(mWelcome.type === 'embed') {
+            const color = (mWelcome.color !== "NULL") ? mWelcome.color : COLOR.bagley,
+              title = mWelcome.title?.replace('{tag}', member.user.tag).replace('{name}', member.user.username).replace('{gname}', guild.name).replace('{membercount}', guild.memberCount),
+              message = mWelcome.message?.replace('{tag}', member.user.tag).replace('{name}', member.user.username).replace('{gname}', guild.name).replace('{membercount}', guild.memberCount);
+  
+            const embed = new Discord.MessageEmbed()
+              .setTitle(title)
+              .setDescription(message)
+              .setThumbnail(member.user.avatarURL({ dynamic: true }))
+              .setColor(color);
 
-// msg_ch.send(embed);
-// }
-// }
-// }
-// })
-// });
+            channel.send(embed);
+          } else if(mWelcome.type === "canvas") {
+            (async () => {
+              const color = (mWelcome.color !== "NULL") ? mWelcome.color : COLOR.bagley,
+                title = mWelcome.title?.replace('{tag}', member.user.tag).replace('{name}', member.user.username).replace('{gname}', guild.name).replace('{membercount}', guild.memberCount),
+                message = mWelcome.message?.replace('{tag}', member.user.tag).replace('{name}', member.user.username).replace('{gname}', guild.name).replace('{membercount}', guild.memberCount),
+                canvas = Canvas.createCanvas(700, 250);
+            
+              const ctx = canvas.getContext('2d'),
+                background = await Canvas.loadImage('./assets/wallpaper.png');
+                
+              ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
+
+              ctx.strokeStyle = '#74037b';
+              ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+              ctx.font = '28px sans-serif';
+              ctx.fillStyle = '#ffffff';
+              ctx.fillText(title, canvas.width / 2.5, canvas.height / 3.5);
+
+              ctx.font = applyText(canvas, message);
+              ctx.fillStyle = '#ffffff';
+              ctx.fillText(message, canvas.width / 2.5, canvas.height / 1.8);
+
+              ctx.beginPath();
+              ctx.arc(125, 125, 100, 0, Math.PI * 2, true);
+              ctx.closePath();
+              ctx.clip();
+
+              const avatar = await Canvas.loadImage(member.user.displayAvatarURL({ format: 'jpg' }));
+              ctx.drawImage(avatar, 25, 25, 200, 200);
+
+              const attachment = new Discord.MessageAttachment(canvas.toBuffer(), 'welcome-image.png');
+
+              channel.send(`Willkommen, ${member}!`, attachment);
+            })()
+          }
+        })
+
+      }
+    }
+  })
+});
 
 // client.on("guildMemberRemove", member => {
 //   let guildConfig.config_module_log = guildC.module.log.get(message.guild.id),
@@ -793,7 +812,7 @@ client.on("message", async message => {
     message.channel.send("Working on it...");
 
     connection.query(`SELECT guild_muterole FROM guild_config WHERE guild_id = '${message.guild.id}'`, function (error, result, fields) {
-      if (result[0] == undefined) return;
+      if (result?.[0] == undefined) return;
       message.guild.channels.cache.forEach((channel) => {
         channel.updateOverwrite(result[0].guild_muterole, { SEND_MESSAGES: false, ADD_REACTIONS: false });
       });
@@ -1503,6 +1522,16 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   }
 
 });
+
+//CANVAS SHIT
+const applyText = (canvas, text) => {
+	const ctx = canvas.getContext('2d');
+	let fontSize = 70;
+	do {
+		ctx.font = `${fontSize -= 10}px sans-serif`;
+	} while (ctx.measureText(text).width > canvas.width - 300);
+	return ctx.font;
+};
 
 client.on('message', message => {
   let content = message.content,
