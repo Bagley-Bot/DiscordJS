@@ -10,14 +10,18 @@ const Discord = require('discord.js'),
   modules = new Map(),
   mysql = require('mysql'),
   // CONFIG
-  guild_cmdprefix = new Map(),
-  guild_adminrole = new Map(),
-  guild_modlog = new Map(),
-  guild_module_moderation = new Map(),
-  guild_module_fun = new Map(),
-  guild_module_log = new Map(),
-  guild_activated = new Map(),
-  guild_lang = new Map(),
+  guildC = {
+    cmdprefix: new Map(),
+    adminrole: new Map(),
+    modlog: new Map(),
+    module: {
+      moderation: new Map(),
+      fun: new Map(),
+      log: new Map()
+    },
+    activated: new Map(),
+    lang: new Map()
+  },
   cron = require("cron"),
   moment = require('moment'),
   fetch = require('node-fetch'),
@@ -25,10 +29,10 @@ const Discord = require('discord.js'),
   formidable = require('formidable');
 
 var connection = mysql.createConnection({
-  host: config.sql_host,
-  user: 'n0chteil',
-  password: config.sql_password,
-  database: 'bagley',
+  host: config.sql.host,
+  user: config.sql.user,
+  password: config.sql.password,
+  database: config.sql.database,
   charset: 'utf8mb4',
 }, console.log('Database connected'))
 if (err => {
@@ -78,33 +82,33 @@ client.on('ready', async () => {
 
   client.guilds.cache.forEach(guild => {
     connection.query(`SELECT guild_prefix FROM guild_config WHERE guild_id = '${guild.id}'`, function (error, result, fields) {
-      if (result[0] == undefined) {
+      if (result?.[0] == undefined) {
         connection.query(`INSERT INTO guild_config (guild_id, guild_prefix) VALUES ('${guild.id}', 'b!')`);
-        guild_cmdprefix.set(guild.id, 'b!');
+        guildC.cmdprefix.set(guild.id, 'b!');
       } else {
-        guild_cmdprefix.set(guild.id, result[0].guild_prefix);
+        guildC.cmdprefix.set(guild.id, result[0].guild_prefix);
       }
     });
 
     connection.query(`SELECT guild_id FROM guilds WHERE guild_id = '${guild.id}'`, function (error, result, fields) {
-      if (result[0] == undefined) {
+      if (result?.[0] == undefined) {
         connection.query(`INSERT INTO guilds (guild_id, guild_name, guild_premium) VALUES('${guild.id}', '${guild.name}', 'false')`);
       }
     });
 
-    connection.query(`SELECT guild_modlog FROM guild_config WHERE guild_id = '${guild.id}'`, function (error, result, fields) {
-      if (result[0] == undefined) {
-        guild_modlog.set(guild.id, undefined);
+    connection.query(`SELECT guildC.modlog FROM guild_config WHERE guild_id = '${guild.id}'`, function (error, result, fields) {
+      if (result?.[0] == undefined) {
+        guildC.modlog.set(guild.id, undefined);
       } else {
-        guild_modlog.set(guild.id, result[0].guild_modlog);
+        guildC.modlog.set(guild.id, result[0].guildC.modlog);
       }
     });
 
-    connection.query(`SELECT guild_lang FROM guild_config WHERE guild_id = '${guild.id}'`, function (error, result, fields) {
-      if (result[0] == undefined) {
-        guild_lang.set(guild.id, "en_AE");
+    connection.query(`SELECT guildC.lang FROM guild_config WHERE guild_id = '${guild.id}'`, function (error, result, fields) {
+      if (result?.[0] == undefined) {
+        guildC.lang.set(guild.id, "en_AE");
       } else {
-        guild_lang.set(guild.id, result[0].guild_lang);
+        guildC.lang.set(guild.id, result[0].guildC.lang);
       }
     });
 
@@ -116,7 +120,7 @@ client.on('ready', async () => {
     //});
 
     connection.query(`SELECT * FROM modules WHERE guild_id = '${guild.id}'`, function (error, results, fields) {
-      if (results[0] == undefined) {
+      if (results?.[0] == undefined) {
         connection.query(`INSERT INTO modules (guild_id, module, status) VALUES ('${guild.id}', 'moderation', 'false')`);
         connection.query(`INSERT INTO modules (guild_id, module, status) VALUES ('${guild.id}', 'fun', 'false')`);
         connection.query(`INSERT INTO modules (guild_id, module, status) VALUES ('${guild.id}', 'log', 'false')`);
@@ -124,18 +128,18 @@ client.on('ready', async () => {
       } else {
         results.forEach(function (result) {
           if (result.module == 'moderation') {
-            guild_module_moderation.set(guild.id, result.status)
+            guildC.module.moderation.set(guild.id, result.status)
           } else if (result.module == 'fun') {
-            guild_module_fun.set(guild.id, result.status)
+            guildC.module.fun.set(guild.id, result.status)
           } else if (result.module == 'log') {
-            guild_module_log.set(guild.id, result.status)
+            guildC.module.log.set(guild.id, result.status)
           }
         });
       }
     });
 
     connection.query(`SELECT guild_id FROM modules_setting WHERE guild_id = '${guild.id}' AND module = 'logging'`, function (error, results, fields) {
-      if (results[0] == undefined) {
+      if (results?.[0] == undefined) {
         connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'logging', 'voice', 'true')`);
         connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'logging', 'channel', 'true')`);
         connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'logging', 'moderation', 'true')`);
@@ -143,7 +147,7 @@ client.on('ready', async () => {
     });
 
     connection.query(`SELECT guild_id FROM modules_setting WHERE guild_id = '${guild.id}' AND module = 'moderation'`, function (error, results, fields) {
-      if (results[0] == undefined) {
+      if (results?.[0] == undefined) {
         connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'moderation', 'bad_words', 'true')`);
         connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'moderation', 'server_invites', 'true')`);
         connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'moderation', 'zalgo', 'true')`);
@@ -153,7 +157,7 @@ client.on('ready', async () => {
     });
 
     connection.query(`SELECT guild_id FROM modules_setting WHERE guild_id = '${guild.id}' AND module = 'welcome'`, function (error, results, fields) {
-      if (results[0] == undefined) {
+      if (results?.[0] == undefined) {
         connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'type', 'message')`);
         connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'channel', NULL)`);
         connection.query(`INSERT INTO modules_setting (guild_id, module, setting, value) VALUES ('${guild.id}', 'welcome', 'message', 'Hey {tag}, welcome to {gname}!')`);
@@ -167,7 +171,7 @@ client.on('ready', async () => {
   });
 
   connection.query(`SELECT COUNT(*) as total FROM guilds`, function (error, result, fields) {
-    if (result[0] != undefined) {
+    if (result?.[0] != undefined) {
 
       let readyEmbed = new Discord.MessageEmbed()
         .setDescription(
@@ -209,10 +213,10 @@ function handleDisconnect(sqlclient) {
 
     console.error('> Re-connecting lost MySQL connection: ' + error.stack);
     connection = mysql.createConnection({
-      host: config.sql_host,
-      user: 'bagley',
-      password: config.sql_password,
-      database: 'bagley',
+      host: config.sql.host,
+      user: config.sql.user,
+      password: config.sql.password,
+      database: config.sql.database,
       charset: 'utf8mb4',
     });
     handleDisconnect(connection);
@@ -238,8 +242,8 @@ function handleServerNotice(field) {
     client.user.setPresence({ activity: { name: data.name, type: data.type }, status: 'dnd' }).catch(console.error);
   }
   else if (field['guild_id'] && field['type'] === 'setlanguage') {
-    guild_lang.set(field['guild_id'], data['language'])
-    connection.query(`UPDATE guild_config SET guild_lang = '${data['language']}', lastedited = CURRENT_TIMESTAMP WHERE guild_id = '${field['guild_id']}'`);
+    guildC.lang.set(field['guild_id'], data['language'])
+    connection.query(`UPDATE guild_config SET guildC.lang = '${data['language']}', lastedited = CURRENT_TIMESTAMP WHERE guild_id = '${field['guild_id']}'`);
   }
 }
 
@@ -258,8 +262,8 @@ function addWarn(guild_id, muteUser, muteReason, message) {
 
 function sendModLog(guild_id, embed) {
   const guildConfig = {
-      config_modlog: guild_modlog.get(channel.guild.id),
-      config_module_log: guild_module_log.get(channel.guild.id)
+      config_modlog: guildC.modlog.get(channel.guild.id),
+      config_module_log: guildC.module.log.get(channel.guild.id)
     };
   
   if (guildConfig.config_modlog != undefined && guildConfig.config_module_log == "true") {
@@ -268,8 +272,8 @@ function sendModLog(guild_id, embed) {
 }
 
 function setGuildModLog(guild_id, variable) {
-  connection.query(`UPDATE guild_config SET guild_modlog = '${variable}' WHERE guild_id = '${guild_id}'`);
-  guild_modlog.set(guild_id, variable)
+  connection.query(`UPDATE guild_config SET guildC.modlog = '${variable}' WHERE guild_id = '${guild_id}'`);
+  guildC.modlog.set(guild_id, variable)
 }
 
 client.on("guildCreate", guild => {
@@ -295,11 +299,11 @@ client.on("guildCreate", guild => {
     } else {
       results.forEach(function (result) {
         if (result.module == 'moderation') {
-          guild_module_moderation.set(guild.id, result.status)
+          guildC.module.moderation.set(guild.id, result.status)
         } else if (result.module == 'fun') {
-          guild_module_fun.set(guild.id, result.status)
+          guildC.module.fun.set(guild.id, result.status)
         } else if (result.module == 'log') {
-          guild_module_log.set(guild.id, result.status)
+          guildC.module.log.set(guild.id, result.status)
         }
       });
     }
@@ -338,9 +342,9 @@ client.on("guildCreate", guild => {
   });
 
 
-  guild_lang.set(guild.id, "en_AE");
-  guild_modlog.set(guild.id, undefined);
-  guild_cmdprefix.set(guild.id, 'b!');
+  guildC.lang.set(guild.id, "en_AE");
+  guildC.modlog.set(guild.id, undefined);
+  guildC.cmdprefix.set(guild.id, 'b!');
 
   connection.query(`SELECT COUNT(*) as total FROM guilds WHERE guild_id != "${guild.id}"`, function (error, result, fields) {
     if (result[0] != undefined) {
@@ -408,15 +412,15 @@ client.on("guildDelete", guild => {
 // });
 
 // client.on("guildMemberRemove", member => {
-//   let guildConfig.config_module_log = guild_module_log.get(message.guild.id),
-//       guildConfig.config_modlog = guild_modlog.get(message.guild.id);
+//   let guildConfig.config_module_log = guildC.module.log.get(message.guild.id),
+//       guildConfig.config_modlog = guildC.modlog.get(message.guild.id);
 //   if(guildConfig.config_module_log != undefined && guildConfig.config_modlog == true) {
 //     lient.channels.cache.get(guildConfig.config_modlog).send(`${member.name} left the server.`);
 //   }
 // })
 
 client.on("message", async message => {
-  const langdata = await fetch('https://raw.githubusercontent.com/Bagley-Bot/Localization/main/' + guild_lang.get(message.guild.id) + '/Bot/index.json').then(response => response.json());
+  const langdata = await fetch('https://raw.githubusercontent.com/Bagley-Bot/Localization/main/' + guildC.lang.get(message.guild.id) + '/Bot/index.json').then(response => response.json());
   if (message.content.toLowerCase().startsWith(config.prefix + "gbk")) {
     if (message.author.id == '495901098926669825') {
       let betakey = makekey(15);
@@ -433,12 +437,12 @@ client.on("message", async message => {
   }
 
   var guildConfig = {
-    config_prefix: guild_cmdprefix.get(message.guild.id),
-    config_adminrole: guild_adminrole.get(message.guild.id),
-    config_modlog: guild_modlog.get(message.guild.id),
-    config_module_mod: guild_module_moderation.get(message.guild.id),
-    config_module_fun: guild_module_fun.get(message.guild.id),
-    config_module_log: guild_module_log.get(message.guild.id)
+    config_prefix: guildC.cmdprefix.get(message.guild.id),
+    config_adminrole: guildC.adminrole.get(message.guild.id),
+    config_modlog: guildC.modlog.get(message.guild.id),
+    config_module_mod: guildC.module.moderation.get(message.guild.id),
+    config_module_fun: guildC.module.fun.get(message.guild.id),
+    config_module_log: guildC.module.log.get(message.guild.id)
   };
 
   if (message.channel.type == 'dm') { return; }
@@ -1237,7 +1241,7 @@ client.on("message", async message => {
       return;
     }
 
-    connection.query(`SELECT guild_lang FROM guild_config WHERE guild_id = '${message.guild.id}'`, function (error, result, fields) {
+    connection.query(`SELECT guildC.lang FROM guild_config WHERE guild_id = '${message.guild.id}'`, function (error, result, fields) {
       if (result[0] != undefined) {
         let language = args[1];
 
@@ -1248,7 +1252,7 @@ client.on("message", async message => {
           .setTimestamp()
           .setColor(COLOR.bagley)
 
-        connection.query(`UPDATE guild_config SET guild_lang = '${language}' WHERE guild_id = '${message.guild.id}'`);
+        connection.query(`UPDATE guild_config SET guildC.lang = '${language}' WHERE guild_id = '${message.guild.id}'`);
         message.channel.send(embed);
       }
     })
@@ -1288,8 +1292,8 @@ client.on("message", async message => {
 client.on('channelDelete', channel => {
   const channelDeleteId = channel.id;
   let guildConfig = {
-      config_modlog: guild_modlog.get(channel.guild.id),
-      config_module_log: guild_module_log.get(channel.guild.id)
+      config_modlog: guildC.modlog.get(channel.guild.id),
+      config_module_log: guildC.module.log.get(channel.guild.id)
     },
     types = {
       text: 'Text channel',
@@ -1324,8 +1328,8 @@ client.on('channelDelete', channel => {
 client.on('channelCreate', channel => {
   const channelCreateId = channel.id;
   let guildConfig = {
-      config_modlog: guild_modlog.get(channel.guild.id),
-      config_module_log: guild_module_log.get(channel.guild.id)
+      config_modlog: guildC.modlog.get(channel.guild.id),
+      config_module_log: guildC.module.log.get(channel.guild.id)
     },
     types = {
       text: 'Text channel',
@@ -1358,8 +1362,8 @@ client.on('channelCreate', channel => {
 client.on('channelUpdate', async (oldChannel, newChannel) => {
   const channelCreateId = newChannel.id;
   let guildConfig = {
-      config_modlog: guild_modlog.get(newChannel.guild.id) || guild_modlog.get(oldChannel.guild.id),
-      config_module_log: guild_module_log.get(newChannel.guild.id) || guild_modlog.get(oldChannel.guild.id)
+      config_modlog: guildC.modlog.get(newChannel.guild.id) || guildC.modlog.get(oldChannel.guild.id),
+      config_module_log: guildC.module.log.get(newChannel.guild.id) || guildC.modlog.get(oldChannel.guild.id)
     },
     oldCategory = oldChannel.parent,
     newCategory = newChannel.parent,
@@ -1397,8 +1401,8 @@ client.on('channelUpdate', async (oldChannel, newChannel) => {
 
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
   let guildConfig = {
-    config_modlog: guild_modlog.get(newMember.guild.id),
-    config_module_log: guild_module_log.get(newMember.guild.id)
+    config_modlog: guildC.modlog.get(newMember.guild.id),
+    config_module_log: guildC.module.log.get(newMember.guild.id)
   };
 
   function getuseravatarFormat() {
@@ -1455,8 +1459,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       oldMember = oldState.member,
       newMember = newState.member,
       guildConfig = {
-        config_modlog: guild_modlog.get(newState.guild.id) || guild_modlog.get(oldState.guild.id),
-        config_module_log: guild_module_log.get(newState.guild.id) || guild_module_log.get(oldState.guild.id)
+        config_modlog: guildC.modlog.get(newState.guild.id) || guildC.modlog.get(oldState.guild.id),
+        config_module_log: guildC.module.log.get(newState.guild.id) || guildC.module.log.get(oldState.guild.id)
       };
 
   if(oldUserChannel === null && newUserChannel !== null) {
